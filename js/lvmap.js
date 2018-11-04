@@ -4,53 +4,44 @@ L.tileLayer('http://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{
 	attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>, Tiles courtesy of <a href="http://hot.openstreetmap.org/" target="_blank">Humanitarian OpenStreetMap Team</a>'
 }).addTo(leafletMap);
 
-	var svgMap = d3.select(leafletMap.getPanes().overlayPane).append("svg").attr("width", 2000).attr("height", 2500);
-	var circleGroup = svgMap.append("g").attr("class", "leaflet-zoom-hide");
-	var tooltipmap = d3.select("#map").append("div").attr("class", "toolTipMap");
-	
-	d3.json('data/Las\ Vegas.json', function(error, data){
-		if(error) throw error;
-		data = data.filter(function(d) {
-			if(d.categories){
-				if(d.categories.includes("Restaurant")|| d.categories.includes("Food")){
-					return !isNaN(d.longitude) & !isNaN(d.latitude);
-				}
-			}
-			return false;
-		});
-		data.forEach(function(d){
-			console.log(1);
-			d.LatLng = new L.LatLng(d.latitude, d.longitude);
-		});
-		var circleBind = circleGroup.selectAll("g")
-		.data(data);
-		var mapCircles = circleBind.enter()
-		.append("g")
-		.append("circle")
-		.attr("pointer-events", "visible")
-		.attr("r", 5)
-		.attr("class", "circleMap")
-		.on('click',function(d){
-			d3.select('#detailbar').style('display', 'block');
-			d3.select('#storename').html(d.name);
-			d3.select('#storeaddress').html(d.address);
-			d3.select('#d-t-rating').html('· Average Rating:\t\t'+d.stars);
-			drawdonut(d);
-//			chosen(d);
-//			stack(d.business_id);
-			console.log(d.business_id);
-		});
+var svgMap = d3.select(leafletMap.getPanes().overlayPane).append("svg").attr("width", 2000).attr("height", 2500);
+var circleGroup = svgMap.append("g").attr("class", "leaflet-zoom-hide");
+var tooltipmap = d3.select("#map").append("div").attr("class", "toolTipMap");
 
+d3.json('data/Las_Vegas_geo.json', function(error, data) {
+    if(error) throw error;
+    // only allow the restaurant data
+    data.features = data.features.filter(function(d) {
+        if(d.properties && d.properties.categories) {
+            if(d.properties.categories.includes('Restaurant') || d.properties.categories.includes('Food')) {
+                return !isNaN(d.properties.longitude) && !isNaN(d.properties.latitude);
+            }
+        }
+        return false;
+    });
 
-		function updateMap() {
-			mapCircles.attr("transform",function(d) {
-				return "translate("+leafletMap.latLngToLayerPoint(d.LatLng).x +","+leafletMap.latLngToLayerPoint(d.LatLng).y +")";
-			});
+    // add GeoJSON layer to the map once the file is loaded
+	var restaurants = L.geoJson(data, {
+		pointToLayer: function(feature,latlng){
+			var marker = L.marker(latlng);
+            marker.on('click', function(d){
+                d = d.target.feature.properties;
+                d3.select('#detailbar').style('display', 'block');
+                d3.select('#storename').html(d.name);
+                d3.select('#storeaddress').html(d.address);
+                d3.select('#d-t-rating').html('· Average Rating:\t\t'+d.stars);
+                drawdonut(d);
+            });
+			return marker;
 		}
-
-		leafletMap.on("viewreset", updateMap);
-		updateMap();
 	});
+
+    // cluster markers
+	var clusters = L.markerClusterGroup();
+	clusters.addLayer(restaurants);
+	leafletMap.addLayer(clusters);
+});
+
 function drawdonut(d){
 	Donut3D.draw("donut", randomData(), 100, 120, 90, 75, 30, 0.4);
 	var legend = d3.select("#donut").selectAll(".legend")
